@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="Git.IO/Stream.fs" />
     <Compile Include="Shared/Types.fs" />
+    <Compile Include="Repository/Queries.fs" />
     <Compile Include="Repository/GitRepository.fs" />
     <Compile Include="Git.IO/GitStore.fs" />
     <Compile Include="Shared/Validate.fs" />

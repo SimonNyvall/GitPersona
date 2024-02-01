@@ -4,10 +4,12 @@ open System
 open System.IO
 open System.Data.SQLite
 open GitPersona.Shared.Types
+open GitPersona.Repository.Queries
 
 type Persona() =
 
-    let connection = new SQLiteConnection("Data Source=Repository/git-persona.db;Version=3;")
+    let connection =
+        new SQLiteConnection("Data Source=Repository/git-persona.db;Version=3;")
 
     let ExecuteNonQuery (command: SQLiteCommand) (gitCredentials: GitCredentials) : unit =
         do connection.Open()
@@ -24,7 +26,7 @@ type Persona() =
         connection.Close()
 
     member _.getPersonas() : GitCredentials list =
-        let command = new SQLiteCommand("SELECT * FROM personas", connection)
+        let command = new SQLiteCommand(getPersonasQuery, connection)
 
         do connection.Open()
 
@@ -41,20 +43,22 @@ type Persona() =
         read reader
 
     member _.addPersona(persona: GitCredentials) : unit =
-        let command =
-            new SQLiteCommand("INSERT INTO personas (name, email) VALUES (@name, @email)", connection)
+        let command = new SQLiteCommand(addPersonaQuery, connection)
 
         ExecuteNonQuery command persona
 
-    member _.removePersona(persona: GitCredentials) : unit =
-        let command =
-            new SQLiteCommand("DELETE FROM personas WHERE name = @name AND email = @email", connection)
+    member _.removePersonaByNameAndEmail(persona: GitCredentials) : unit =
+        let command = new SQLiteCommand(removePersonaByNameAndEmailQuery, connection)
+
+        ExecuteNonQuery command persona
+
+    member _.removePersonaId(persona: GitCredentials) : unit =
+        let command = new SQLiteCommand(removePersonaByIdQuery, connection)
 
         ExecuteNonQuery command persona
 
     member _.updatePersonaEmail(persona: GitCredentials) : unit =
-        let command =
-            new SQLiteCommand("UPDATE personas SET email = @email WHERE name = @name", connection)
+        let command = new SQLiteCommand(updatePersonaQuery, connection)
 
         ExecuteNonQuery command persona
 
