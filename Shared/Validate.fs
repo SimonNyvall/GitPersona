@@ -1,12 +1,7 @@
 module GitPersona.Shared.Validate
 
 open System
-
-type Command =
-    | List
-    | Add
-    | Remove
-    | Update
+open GitPersona.Shared.Types
 
 let parseCommand (cmd: string) =
     match cmd with
