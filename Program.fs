@@ -1,7 +1,9 @@
-﻿open GitPersona.Git.Store
-open GitPersona.Git.Persona
+﻿open System
+open GitPersona.Git.Store
+open GitPersona.Repository.Persona
 open GitPersona.Shared.Types
 open GitPersona.Shared.Validate
+open GitPersona.Handler
 
 let usage =
     """Usage: persona <command> [<options>] [<args>]
@@ -25,8 +27,8 @@ persona use [ID] OR [NAME] [EMAIL]
 
 [<EntryPoint>]
 let main argv =
-    let store = new Store("./../../../.gitconfig")
-    let persona = new Persona()
+    let store = new Store(Environment.GetEnvironmentVariable "GIT_CONFIG_PATH")
+    let persona = new Persona("Data Source=git-persona.db;Version=3;")
 
     if argv.Length > 0 then
         let command = argv.[0]
@@ -35,11 +37,12 @@ let main argv =
         match parseCommand command with
         | Some cmd when validateFlags cmd args ->
             match cmd with
-            | List ->
-                let personas = persona.getPersonas ()
+            | List -> printGitPersonaTable ()
+            | Add ->
+                let name = args.[0]
+                let email = args.[1]
 
-                personas
-                |> List.iter (fun p -> printfn "%s : %s" p.Username p.Email)
+                addPersonaHandler name email
 
             0
         | _ ->

@@ -1,69 +1,114 @@
-module GitPersona.Git.Persona
+module GitPersona.Repository.Persona
 
 open System
 open System.IO
+open System.Data
 open System.Data.SQLite
+open System.Data.Common
+open Microsoft.FSharp.Control
 open GitPersona.Shared.Types
 open GitPersona.Repository.Queries
 
-type Persona() =
+type Persona(connectionString: string) =
+    let executeNonQueryAsync (query: string) (gitCredentials: GitModel) : Async<unit> =
+        async {
+            use connection = new SQLiteConnection(connectionString)
 
-    let connection =
-        new SQLiteConnection("Data Source=Repository/git-persona.db;Version=3;")
+            do!
+                connection.OpenAsync()
+                |> Async.AwaitTask
+                |> Async.Ignore
 
-    let ExecuteNonQuery (command: SQLiteCommand) (gitCredentials: GitCredentials) : unit =
-        do connection.Open()
+            let command = new SQLiteCommand(query, connection)
 
-        command.Parameters.Add(new SQLiteParameter("@name", gitCredentials.Username))
-        |> ignore
+            command.Parameters.Add(new SQLiteParameter("@id", gitCredentials.Id))
+            |> ignore
 
-        command.Parameters.Add(new SQLiteParameter("@email", gitCredentials.Email))
-        |> ignore
+            command.Parameters.Add(new SQLiteParameter("@name", gitCredentials.Username))
+            |> ignore
 
-        command.Connection <- connection
-        command.ExecuteNonQuery() |> ignore
+            command.Parameters.Add(new SQLiteParameter("@email", gitCredentials.Email))
+            |> ignore
 
-        connection.Close()
+            do!
+                command.ExecuteNonQueryAsync()
+                |> Async.AwaitTask
+                |> Async.Ignore
+        }
 
-    member _.getPersonas() : GitCredentials list =
-        let command = new SQLiteCommand(getPersonasQuery, connection)
 
-        do connection.Open()
+    member _.getPersonas() : Async<GitModel list> =
+        async {
+            use connection = new SQLiteConnection(connectionString)
+            let! _ = Async.AwaitIAsyncResult(connection.OpenAsync())
 
-        let reader = command.ExecuteReader()
+            let command = new SQLiteCommand(getPersonasQuery, connection)
 
-        let rec read (reader: SQLiteDataReader) =
-            if reader.Read() then
-                let name = reader.GetString(0)
-                let email = reader.GetString(1)
-                { Username = name; Email = email } :: read reader
-            else
-                []
+            use! reader =
+                Async.FromContinuations (fun (cont, econt, ccont) ->
+                    try
+                        cont (command.ExecuteReader(CommandBehavior.CloseConnection))
+                    with
+                    | ex -> econt ex)
 
-        read reader
+            let rec readAsync (reader: SQLiteDataReader) : Async<GitModel list> =
+                async {
+                    if reader.Read() then
+                        let id = reader.GetInt32(0)
+                        let name = reader.GetString(1)
+                        let email = reader.GetString(2)
 
-    member _.addPersona(persona: GitCredentials) : unit =
-        let command = new SQLiteCommand(addPersonaQuery, connection)
+                        let model =
+                            { Id = id
+                              Username = name
+                              Email = email }
 
-        ExecuteNonQuery command persona
+                        let! rest = readAsync reader
+                        return model :: rest
+                    else
+                        return []
+                }
 
-    member _.removePersonaByNameAndEmail(persona: GitCredentials) : unit =
-        let command = new SQLiteCommand(removePersonaByNameAndEmailQuery, connection)
+            let! models = readAsync reader
+            return models
+        }
 
-        ExecuteNonQuery command persona
 
-    member _.removePersonaId(persona: GitCredentials) : unit =
-        let command = new SQLiteCommand(removePersonaByIdQuery, connection)
+    member _.addPersona(persona: GitModel) : Async<unit> =
+        async {
+            let query = addPersonaQuery
+            do! executeNonQueryAsync query persona
+        }
 
-        ExecuteNonQuery command persona
 
-    member _.updatePersonaEmail(persona: GitCredentials) : unit =
-        let command = new SQLiteCommand(updatePersonaQuery, connection)
+    member _.removePersonaWithId(id: int) : Async<unit> =
+        async {
+            let query = removePersonaByIdQuery
+            do! executeNonQueryAsync query { Id = id; Username = ""; Email = "" }
+        }
 
-        ExecuteNonQuery command persona
 
-    member _.updatePersonaName(persona: GitCredentials) : unit =
-        let command =
-            new SQLiteCommand("UPDATE personas SET name = @name WHERE email = @email", connection)
+    member _.removePersonaWithNameAndEmail(name: string, email: string) : Async<unit> =
+        async {
+            let query = removePersonaByNameAndEmailQuery
 
-        ExecuteNonQuery command persona
+            do!
+                executeNonQueryAsync
+                    query
+                    { Id = 0
+                      Username = name
+                      Email = email }
+        }
+
+
+    member _.updatePersonaWithId(id: int, newUsername: string, newEmail: string) : Async<unit> =
+        async {
+            let query = updatePersonaQuery
+
+            do!
+                executeNonQueryAsync
+                    query
+                    { Id = id
+                      Username = newUsername
+                      Email = newEmail }
+        }

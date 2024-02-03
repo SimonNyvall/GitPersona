@@ -12,6 +12,7 @@
     <Compile Include="Repository/GitRepository.fs" />
     <Compile Include="Git.IO/GitStore.fs" />
     <Compile Include="Shared/Validate.fs" />
+    <Compile Include="Handler.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
